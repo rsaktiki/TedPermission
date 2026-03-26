@@ -1,4 +1,4 @@
-name: Build TedPermission to DEX
+name: Build All TedPermission Modules to Single DEX
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-dex:
+  build-all-dex:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -19,31 +19,38 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Build AAR
+      - name: Build All Modules
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease
 
-      - name: Extract Jar and Convert to DEX
+      - name: Merge All Jars and Convert to DEX
         run: |
-          # 1. Cari file AAR hasil build
-          AAR_PATH=$(find . -name "*release.aar" | head -n 1)
+          # 1. Buat folder sementara untuk extract
+          mkdir combined_jar
           
-          # 2. Extract classes.jar dari dalam AAR
-          unzip -p $AAR_PATH classes.jar > ted_classes.jar
+          # 2. Cari semua file AAR dari semua folder modul (normal, coroutine, rx, dll)
+          # Lalu extract classes.jar dari masing-masing AAR dan kumpulkan
+          count=0
+          find . -name "*release.aar" | while read aar; do
+            count=$((count+1))
+            unzip -p "$aar" classes.jar > "combined_jar/part_$count.jar"
+            echo "Extracted classes.jar from $aar"
+          done
           
-          # 3. Cari lokasi D8 di runner GitHub
+          # 3. Cari lokasi D8
           D8_PATH=$(find $ANDROID_HOME/build-tools -name "d8" | sort -r | head -n 1)
           
-          # 4. Konversi Jar ke Dex
-          $D8_PATH --release --output ted_lib.zip ted_classes.jar
+          # 4. Jalankan D8 dengan menginput SEMUA jar yang sudah dikumpulkan
+          # Ini akan menggabungkan semuanya menjadi satu classes.dex
+          $D8_PATH --release --output combined_dex.zip combined_jar/*.jar
           
-          # 5. Extract classes.dex dari hasil d8
-          unzip ted_lib.zip classes.dex
+          # 5. Extract hasil akhirnya
+          unzip combined_dex.zip classes.dex
 
-      - name: Upload DEX Artifact
+      - name: Upload Single DEX Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TedPermission-DEX
+          name: TedPermission-Full-DEX
           path: classes.dex
           
