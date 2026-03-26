@@ -46,4 +46,4 @@ jobs:
         with:
           name: TedPermission-DEX
           path: classes.dex
-         masterasteraster
+          
