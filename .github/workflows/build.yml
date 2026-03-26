@@ -1,4 +1,4 @@
-name: Build TedPermission AAR
+name: Build TedPermission to DEX
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-dex:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -19,15 +19,31 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Build AAR
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
 
-      - name: Build with Gradle
-        run: ./gradlew assembleRelease
+      - name: Extract Jar and Convert to DEX
+        run: |
+          # 1. Cari file AAR hasil build
+          AAR_PATH=$(find . -name "*release.aar" | head -n 1)
+          
+          # 2. Extract classes.jar dari dalam AAR
+          unzip -p $AAR_PATH classes.jar > ted_classes.jar
+          
+          # 3. Cari lokasi D8 di runner GitHub
+          D8_PATH=$(find $ANDROID_HOME/build-tools -name "d8" | sort -r | head -n 1)
+          
+          # 4. Konversi Jar ke Dex
+          $D8_PATH --release --output ted_lib.zip ted_classes.jar
+          
+          # 5. Extract classes.dex dari hasil d8
+          unzip ted_lib.zip classes.dex
 
-      - name: Upload AAR
+      - name: Upload DEX Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TedPermission-Release
-          path: "**/build/outputs/aar/*.aar"
-          
+          name: TedPermission-DEX
+          path: classes.dex
+         masterasteraster
